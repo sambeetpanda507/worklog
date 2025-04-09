@@ -34,6 +34,7 @@ type WorkLog struct {
 	CompletedAt *time.Time `json:"completedAt"`
 	CreatedAt   time.Time  `json:"createdAt"`
 	UpdatedAt   time.Time  `json:"updatedAt"`
+	Priority    int        `json:"priority"`
 }
 
 // get the secrets
@@ -98,6 +99,7 @@ func handleCreateLog(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		Notes       string     `json:"notes"`
 		StartedAt   *time.Time `json:"startedAt"`
 		CompletedAt *time.Time `json:"completedAt"`
+		Priority    *int       `json:"priority"`
 	}
 
 	err := json.NewDecoder(r.Body).Decode(&body)
@@ -138,7 +140,23 @@ func handleCreateLog(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		body.CompletedAt = &completedAt
 	}
 
-	q := "insert into logs (task_name, task_type, task_status, notes, started_at, completed_at) values ($1, $2, $3, $4, $5, $6)"
+	// handle task priority
+	if body.Priority != nil {
+		// valid priority int
+		if *body.Priority != 1 && *body.Priority != 5 && *body.Priority != 7 && *body.Priority != 10 {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			json.NewEncoder(w).Encode(map[string]string{"message": "Invalid priority value"})
+			return
+		}
+	}
+
+	// assing default value of priority if it's nil
+	if body.Priority == nil {
+		var defaultVal int = 1
+		body.Priority = &defaultVal
+	}
+
+	q := "insert into logs (task_name, task_type, task_status, notes, started_at, completed_at, priority) values ($1, $2, $3, $4, $5, $6, $7)"
 	_, err = db.Exec(
 		q,
 		body.TaskName,
@@ -147,6 +165,7 @@ func handleCreateLog(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		body.Notes,
 		body.StartedAt,
 		body.CompletedAt,
+		body.Priority,
 	)
 
 	if err != nil {
@@ -419,6 +438,7 @@ func main() {
 			CompletedAt *time.Time `json:"completedAt"`
 			CreatedAt   time.Time  `json:"createdAt"`
 			UpdatedAt   time.Time  `json:"updatedAt"`
+			Priority    int        `json:"priority"`
 		}
 
 		var logs []Log
@@ -440,6 +460,7 @@ func main() {
 				&completedAt,
 				&logEntry.CreatedAt,
 				&logEntry.UpdatedAt,
+				&logEntry.Priority,
 			)
 
 			if err != nil {
