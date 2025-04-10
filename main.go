@@ -199,7 +199,7 @@ func validateTaskStatus(taskStatus string) bool {
 }
 
 func getLogById(db *sql.DB, logId string) (WorkLog, error) {
-	q := "select log_id, task_name, task_type, task_status, notes, started_at, completed_at, created_at, updated_at from logs where log_id = $1"
+	q := "select log_id, task_name, task_type, task_status, priority, notes, started_at, completed_at, created_at, updated_at from logs where log_id = $1"
 	row := db.QueryRow(q, logId)
 	var workLog WorkLog
 	var (
@@ -213,6 +213,7 @@ func getLogById(db *sql.DB, logId string) (WorkLog, error) {
 		&workLog.TaskName,
 		&workLog.TaskType,
 		&workLog.TaskStatus,
+		&workLog.Priority,
 		&notes,
 		&startedAt,
 		&completedAt,
@@ -257,6 +258,7 @@ func updateLog(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		Notes       string     `json:"notes"`
 		StartedAt   *time.Time `json:"startedAt"`
 		CompletedAt *time.Time `json:"completedAt"`
+		Priority    *int       `json:"priority"`
 	}
 
 	err := json.NewDecoder(r.Body).Decode(&body)
@@ -367,6 +369,18 @@ func updateLog(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		argIdx++
 	}
 
+	if body.Priority != nil {
+		if *body.Priority != 1 && *body.Priority != 5 && *body.Priority != 7 && *body.Priority != 10 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"message": "Invalid priority value"})
+			return
+		}
+
+		fields = append(fields, fmt.Sprintf("priority = $%d", argIdx))
+		args = append(args, *body.Priority)
+		argIdx += 1
+	}
+
 	if len(fields) == 0 {
 		http.Error(w, "No valid fields to update", http.StatusBadRequest)
 		return
@@ -416,6 +430,11 @@ func main() {
 
 	mux.HandleFunc("/logs", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+
+		// get the search params
+		searchVal := r.URL.Query().Get("s")
+		fmt.Println("search value: ", searchVal)
+
 		rows, err := GetAllLogs(db)
 		if err != nil {
 			if err == sql.ErrNoRows {
