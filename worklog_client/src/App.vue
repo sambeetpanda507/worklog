@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { DateTime } from 'luxon'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import LogModal from '@/components/LogModal.vue'
 
 type TaskType = 'task' | 'bug' | 'story'
 type TaskStatus = 'backlog' | 'pending' | 'progress' | 'pr' | 'staging'
@@ -24,6 +25,10 @@ type ConfirmModalExposed = {
   modalRef: HTMLDialogElement | null
 }
 
+type LogModalExposed = {
+  modalRef: HTMLDialogElement | null
+}
+
 const logs = ref<ILog[]>([])
 const loading = ref<boolean>(false)
 const searchValue = ref<string>('')
@@ -32,6 +37,7 @@ const showActionMenu = ref<boolean>(false)
 const menuRef = ref<HTMLDivElement | null>(null)
 const showDeleteConfirmation = ref<boolean>(false)
 const confirmDialogRef = ref<ConfirmModalExposed | null>(null)
+const logModalRef = ref<LogModalExposed | null>(null)
 
 async function fetchLogs(): Promise<void> {
   try {
@@ -119,6 +125,15 @@ function handleDeleteLogs() {
   closeActionMenu()
 }
 
+function handleCreateNew() {
+  logModalRef.value?.modalRef?.showModal()
+  closeActionMenu()
+}
+
+function handleCloseLogModal() {
+  logModalRef.value?.modalRef?.close()
+}
+
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
   fetchLogs()
@@ -138,6 +153,9 @@ onBeforeUnmount(() => {
       :handle-confirm="handleConfirmDeleteLogs"
       :loading="loading"
     />
+
+    <!-- LOG MODAL -->
+    <LogModal ref="logModalRef" @close-modal="handleCloseLogModal" />
 
     <section class="data-grid">
       <!-- search bar -->
@@ -159,7 +177,7 @@ onBeforeUnmount(() => {
         <div class="action-container" ref="menuRef">
           <button class="primary-button" @click="toggleAction">ACTION</button>
           <ul :class="['menu', showActionMenu ? 'active' : 'hidden']">
-            <li class="menu-item">Create New</li>
+            <li class="menu-item" @click="handleCreateNew">Create New</li>
             <li class="menu-item" @click="handleDeleteLogs">Delete</li>
             <li class="menu-item">Update</li>
           </ul>
@@ -240,7 +258,6 @@ onBeforeUnmount(() => {
   border-radius: 0.25rem;
   padding: 0.5rem 1rem;
   font-size: 0.95rem;
-  border-radius: 6px;
   transition: all 0.2s ease-in-out;
 }
 
