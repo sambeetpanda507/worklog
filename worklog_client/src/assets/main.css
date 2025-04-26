@@ -1,0 +1,86 @@
+@import url('https://fonts.googleapis.com/css2?family=Playwrite+RO:wght@100..400&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+
+:root {
+  --primary: #4f46e5;
+  --danger: #dc2626;
+}
+
+*,
+*::after,
+*::before {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 400;
+  font-style: normal;
+}
+
+.container {
+  max-width: 75rem;
+  margin: 0 auto;
+  width: 100%;
+}
+
+@media (min-width: 40rem) {
+  .container {
+    padding: 1rem 2rem;
+  }
+}
+
+button {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.95rem;
+  border: 2px solid;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  font-weight: 600;
+}
+
+.primary-button {
+  color: var(--primary);
+  background-color: transparent;
+  border-color: var(--primary);
+}
+
+.primary-button:hover {
+  background-color: var(--primary);
+  color: white;
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.3);
+}
+
+.primary-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.3);
+}
+
+.danger-button {
+  color: var(--danger);
+  background-color: transparent;
+  border: 2px solid var(--danger);
+}
+
+.danger-button:hover {
+  background-color: var(--danger);
+  color: white;
+  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.3);
+}
+
+.danger-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.3);
+}
+
+.disabled-button {
+  pointer-events: none;
+  background-color: rgb(235, 235, 235);
+  border-color: rgb(167, 167, 167);
+  color: rgb(126, 126, 126);
+  text-transform: uppercase;
+}
+
+.disabled-icon-button {
+  pointer-events: none;
+  color: rgb(126, 126, 126);
+}
