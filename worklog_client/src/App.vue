@@ -86,10 +86,10 @@ async function handleConfirmDeleteLogs() {
   try {
     loading.value = true
     const logIds: string[] = selectedLogIds.value
-    const baseURL: string = "http://localhost:5001/logs"
+    const baseURL: string = 'http://localhost:5001/logs'
     const searchParms: URLSearchParams = new URLSearchParams({ logIds: JSON.stringify(logIds) })
     const url: string = `${baseURL}?${searchParms.toString()}`
-    await fetch(url, { method: "DELETE" })
+    await fetch(url, { method: 'DELETE' })
     selectedLogIds.value = []
     await fetchLogs()
   } catch (e: unknown) {
@@ -131,16 +131,25 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="container">
-    <ConfirmModal ref="confirmDialogRef" :confirm-button-text="'CONFIRM'"
-      :confirm-text="'Are you sure you want to delete logs(s)?'" :handle-confirm="handleConfirmDeleteLogs"
-      :loading="loading" />
+    <ConfirmModal
+      ref="confirmDialogRef"
+      :confirm-button-text="'CONFIRM'"
+      :confirm-text="'Are you sure you want to delete logs(s)?'"
+      :handle-confirm="handleConfirmDeleteLogs"
+      :loading="loading"
+    />
+
     <section class="data-grid">
       <!-- search bar -->
       <form class="search-box" @submit.prevent="fetchLogs">
         <input type="text" v-model="searchValue" placeholder="Search logs or notes..." required />
         <button type="submit" class="primary-button search-button">SEARCH</button>
-        <button v-if="searchValue.trim().length > 0" type="button" @click="handleClearSearch"
-          class="clear-button danger-button">
+        <button
+          v-if="searchValue.trim().length > 0"
+          type="button"
+          @click="handleClearSearch"
+          class="clear-button danger-button"
+        >
           Clear
         </button>
       </form>
@@ -181,7 +190,13 @@ onBeforeUnmount(() => {
             <!-- Iterate over logs and render logId -->
             <tr v-for="log of logs" :key="log.logId">
               <td>
-                <input type="checkbox" id="log" class="checkbox" :value="log.logId" v-model="selectedLogIds" />
+                <input
+                  type="checkbox"
+                  id="log"
+                  class="checkbox"
+                  :value="log.logId"
+                  v-model="selectedLogIds"
+                />
               </td>
               <td>{{ log.logId }}</td>
               <td>{{ log.taskName }}</td>
@@ -229,7 +244,7 @@ onBeforeUnmount(() => {
   transition: all 0.2s ease-in-out;
 }
 
-.search-box>input {
+.search-box > input {
   width: 100%;
   outline: none;
   border: none;
