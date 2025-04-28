@@ -155,7 +155,7 @@ onBeforeUnmount(() => {
     />
 
     <!-- LOG MODAL -->
-    <LogModal ref="logModalRef" @close-modal="handleCloseLogModal" />
+    <LogModal ref="logModalRef" @close-modal="handleCloseLogModal" :fetch-logs="fetchLogs" />
 
     <section class="data-grid">
       <!-- search bar -->
@@ -221,7 +221,7 @@ onBeforeUnmount(() => {
               <td>{{ log.taskType }}</td>
               <td>{{ log.taskStatus }}</td>
               <td>{{ log.priority }}</td>
-              <td>{{ log.notes }}</td>
+              <td class="uppercase">{{ log.notes }}</td>
               <td v-if="log.startedAt" class="date-cell">
                 {{ DateTime.fromISO(log.startedAt).toFormat('dd-LLL-yyyy') }}
               </td>

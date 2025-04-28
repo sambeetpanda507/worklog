@@ -43,7 +43,7 @@ function handleClose() {
   </dialog>
 </template>
 
-<style>
+<style scoped>
 .dialog {
   outline: none;
   border: 0;

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { DateTime } from 'luxon'
-import { ref, defineEmits } from 'vue'
+import { ref } from 'vue'
 
-interface IProps {}
+interface IProps {
+  fetchLogs: () => Promise<void>
+}
 
 interface IEmits {
   (e: 'closeModal'): void
@@ -11,23 +13,56 @@ interface IEmits {
 type TaskTypes = 'task' | 'bug' | 'story'
 type TaskProgress = 'backlog' | 'pending' | 'progress' | 'pr' | 'staging'
 
-const {} = defineProps<IProps>()
+const { fetchLogs } = defineProps<IProps>()
 const modalRef = ref<HTMLDialogElement | null>(null)
-const emit = defineEmits<IEmits>()
 const taskName = ref<string>('')
-const taskType = ref<TaskTypes | null>(null)
-const taskStatus = ref<TaskProgress | null>(null)
-const taskPriority = ref<number | null>(null)
+const taskType = ref<TaskTypes>('task')
+const taskStatus = ref<TaskProgress>('pending')
+const taskPriority = ref<number>(1)
 const startedAt = ref<string>(DateTime.now().toFormat("yyyy-MM-dd'T'HH:mm"))
 const completedAt = ref<string>('')
+const notes = ref<string>('')
+const loading = ref<boolean>(false)
+const emit = defineEmits<IEmits>()
 defineExpose({ modalRef })
 
 function handleClose() {
   emit('closeModal')
 }
 
-function handleSubmit() {
-  console.log('submit')
+async function handleSubmit() {
+  try {
+    loading.value = true
+    const payload = {
+      taskName: taskName.value,
+      taskType: taskType.value,
+      taskStatus: taskStatus.value,
+      ...(notes.value.trim().length > 0 ? { notes: notes.value } : {}),
+      ...(startedAt.value.length > 0
+        ? { startedAt: DateTime.fromFormat(startedAt.value, "yyyy-MM-dd'T'HH:mm").toISO() }
+        : {}),
+      ...(completedAt.value.length > 0
+        ? { completedAt: DateTime.fromFormat(completedAt.value, "yyyy-MM-dd'T'HH:mm").toISO() }
+        : {}),
+      priority: taskPriority.value,
+    }
+
+    await fetch('http://localhost:5001/log', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+    })
+
+    await fetchLogs()
+  } catch (e) {
+    console.log(e)
+  } finally {
+    loading.value = false
+    modalRef.value?.close()
+  }
 }
 </script>
 
@@ -132,17 +167,17 @@ function handleSubmit() {
 
       <div class="input-group notes">
         <label for="notes">Notes</label>
-        <textarea name="notes" id="notes" rows="3"></textarea>
+        <textarea name="notes" id="notes" rows="3" v-model="notes"></textarea>
       </div>
 
       <div class="form-action">
-        <button type="submit" class="primary-button">SAVE</button>
+        <button type="submit" class="primary-button">{{ loading ? 'LOADING...' : 'SAVE' }}</button>
       </div>
     </form>
   </dialog>
 </template>
 
-<style>
+<style scoped>
 .dialog {
   outline: none;
   border: 0;
@@ -245,6 +280,10 @@ function handleSubmit() {
 
 .notes {
   padding-inline: 1rem;
+}
+
+.notes textarea {
+  resize: none;
 }
 
 .form-action {
