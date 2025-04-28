@@ -481,7 +481,8 @@ func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
@@ -507,9 +508,9 @@ func main() {
 	serverPort := GetSecrets().serverPort
 	mux := http.NewServeMux()
 	log.Println("server is running on http://localhost:" + serverPort)
-	mux.Handle("/ping", corsMiddleware(http.HandlerFunc(pingHandler)))
+	mux.HandleFunc("/ping", pingHandler)
 
-	mux.Handle("/logs", corsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/logs", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		// get the search params
@@ -599,9 +600,9 @@ func main() {
 		json.NewEncoder(w).Encode(struct {
 			Logs []Log `json:"logs"`
 		}{Logs: logs})
-	})))
+	})
 
-	mux.Handle("/log/{logId}", corsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/log/{logId}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		logId := r.PathValue("logId")
 		worklog, err := getLogById(db, logId)
@@ -624,17 +625,17 @@ func main() {
 		}
 
 		json.NewEncoder(w).Encode(&response{Message: "Ok", Log: worklog})
-	})))
+	})
 
-	mux.Handle("PUT /log", corsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("PUT /log", func(w http.ResponseWriter, r *http.Request) {
 		updateLog(w, r, db)
-	})))
+	})
 
-	mux.Handle("POST /log", corsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /log", func(w http.ResponseWriter, r *http.Request) {
 		handleCreateLog(db, w, r)
-	})))
+	})
 
-	mux.Handle("DELETE /log/{logId}", corsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("DELETE /log/{logId}", func(w http.ResponseWriter, r *http.Request) {
 		logId := r.PathValue("logId")
 		w.Header().Set("Content-Type", "application/json")
 
@@ -668,9 +669,9 @@ func main() {
 		// return final response
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"message": "Successfully delete the log"})
-	})))
+	})
 
-	mux.Handle("DELETE /logs", corsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("DELETE /logs", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		logIds := r.URL.Query().Get("logIds")
 		if logIds == "" {
@@ -713,9 +714,9 @@ func main() {
 			Message  string `json:"message"`
 			RowCount int64  `json:"rowCount"`
 		}{Message: "Logs deleted successfully", RowCount: rowCount})
-	})))
+	})
 
-	if err := http.ListenAndServe(":"+serverPort, mux); err != nil {
+	if err := http.ListenAndServe(":"+serverPort, corsMiddleware(mux)); err != nil {
 		panic(err)
 	}
 }
