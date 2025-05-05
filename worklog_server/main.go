@@ -191,7 +191,7 @@ func handleCreateLog(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	}
 
 	if body.Notes == "" {
-		body.Notes = "n/a"
+		body.Notes = "N/A"
 	}
 
 	if body.StartedAt != nil {
@@ -714,6 +714,71 @@ func main() {
 			Message  string `json:"message"`
 			RowCount int64  `json:"rowCount"`
 		}{Message: "Logs deleted successfully", RowCount: rowCount})
+	})
+
+	mux.HandleFunc("GET /status-summary", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		q := `
+			SELECT
+				TASK_STATUS,
+				COUNT(TASK_STATUS) AS STATUS_COUNT,
+				(
+					COUNT(TASK_STATUS)::FLOAT / (
+						SELECT
+							COUNT(*)
+						FROM
+							LOGS
+					)
+				) * 100 AS PERCENTAGE
+			FROM
+				LOGS
+			GROUP BY
+				TASK_STATUS;
+		`
+
+		fmt.Println("[query]: ", q)
+		rows, err := db.Query(q)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"message": "Something wen't worng while fetching status summary."})
+			return
+		}
+
+		defer rows.Close()
+		type Summary struct {
+			TaskStatus  string  `json:"taskStatus"`
+			StatusCount int     `json:"statusCount"`
+			Percentage  float64 `json:"percentage"`
+		}
+
+		var summary []Summary
+		for rows.Next() {
+			var row Summary
+			err := rows.Scan(
+				&row.TaskStatus,
+				&row.StatusCount,
+				&row.Percentage,
+			)
+
+			if err != nil {
+				http.Error(w, "Error scanning row: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			summary = append(summary, row)
+		}
+
+		if summary == nil {
+			json.NewEncoder(w).Encode(struct {
+				Summary []Summary `json:"statusSummary"`
+			}{Summary: []Summary{}})
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(struct {
+			Summary []Summary `json:"statusSummary"`
+		}{Summary: summary})
 	})
 
 	if err := http.ListenAndServe(":"+serverPort, corsMiddleware(mux)); err != nil {
