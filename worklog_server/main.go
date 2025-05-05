@@ -781,6 +781,141 @@ func main() {
 		}{Summary: summary})
 	})
 
+	mux.HandleFunc("GET /type-summary", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		q := `
+			SELECT
+				TASK_TYPE,
+				COUNT(TASK_TYPE) AS TYPE_COUNT,
+				(
+					COUNT(TASK_TYPE)::FLOAT / (
+						SELECT
+							COUNT(*)
+						FROM
+							LOGS
+					)
+				) * 100 AS PERCENTAGE
+			FROM
+				LOGS
+			GROUP BY
+				TASK_TYPE;
+		`
+
+		fmt.Println("[query]: ", q)
+		rows, err := db.Query(q)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"message": "Something wen't worng while fetching task type summary."})
+			return
+		}
+
+		defer rows.Close()
+		type Summary struct {
+			TaskType    string  `json:"taskType"`
+			StatusCount int     `json:"statusCount"`
+			Percentage  float64 `json:"percentage"`
+		}
+
+		var summary []Summary
+		for rows.Next() {
+			var row Summary
+			err := rows.Scan(
+				&row.TaskType,
+				&row.StatusCount,
+				&row.Percentage,
+			)
+
+			if err != nil {
+				http.Error(w, "Error scanning row: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			summary = append(summary, row)
+		}
+
+		if summary == nil {
+			json.NewEncoder(w).Encode(struct {
+				Summary []Summary `json:"typeSummary"`
+			}{Summary: []Summary{}})
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(struct {
+			Summary []Summary `json:"typeSummary"`
+		}{Summary: summary})
+	})
+
+	mux.HandleFunc("GET /daily-task-count", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		q := `
+			SELECT
+				CREATED_AT::DATE AS CREATED_DATE,
+				TO_CHAR(CREATED_AT::DATE, 'DD MON YYYY') AS FORMATTED_DATE,
+				COUNT(*) AS TASK_COUNT
+			FROM
+				LOGS
+			GROUP BY
+				CREATED_DATE
+			ORDER BY
+				CREATED_DATE;
+		`
+		// Print the query
+		fmt.Println("[query]: ", q)
+
+		// Execute the query
+		rows, err := db.Query(q)
+
+		// Error handling
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"message": "Something wen't wrong while fetching daily task count"})
+			return
+		}
+
+		// Close the rows
+		defer rows.Close()
+
+		// define the response structure
+		type DailyTask struct {
+			CreatedDate   time.Time `json:"createdDate"`
+			FormattedDate string    `json:"formattedDate"`
+			TaskCount     int       `json:"taskCount"`
+		}
+
+		dailyTasks := []DailyTask{}
+
+		// Scan the rows
+		for rows.Next() {
+			var row DailyTask
+			err := rows.Scan(
+				&row.CreatedDate,
+				&row.FormattedDate,
+				&row.TaskCount,
+			)
+
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"message": "Something wen't wrong while fetching daily task count"})
+				return
+			}
+
+			dailyTasks = append(dailyTasks, row)
+		}
+
+		if len(dailyTasks) == 0 {
+			json.NewEncoder(w).Encode(struct {
+				DailyTasks []DailyTask `json:"dailyTasks"`
+			}{DailyTasks: []DailyTask{}})
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(struct {
+			DailyTasks []DailyTask `json:"dailyTasks"`
+		}{DailyTasks: dailyTasks})
+	})
+
 	if err := http.ListenAndServe(":"+serverPort, corsMiddleware(mux)); err != nil {
 		panic(err)
 	}
