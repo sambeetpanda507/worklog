@@ -3,23 +3,8 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { DateTime } from 'luxon'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import LogModal from '@/components/LogModal.vue'
-
-type TaskType = 'task' | 'bug' | 'story'
-type TaskStatus = 'backlog' | 'pending' | 'progress' | 'pr' | 'staging'
-type Priority = 1 | 5 | 7 | 10
-
-interface ILog {
-  logId: string
-  taskName: string
-  taskType: TaskType
-  taskStatus: TaskStatus
-  priority: Priority
-  notes?: string
-  startedAt?: string
-  completedAt?: string
-  createdAt: string
-  updatedAt: string
-}
+import type { ILog } from './interfaces'
+import TaskSummary from '@/components/TaskSummary.vue'
 
 type ConfirmModalExposed = {
   modalRef: HTMLDialogElement | null
@@ -38,6 +23,7 @@ const menuRef = ref<HTMLDivElement | null>(null)
 const showDeleteConfirmation = ref<boolean>(false)
 const confirmDialogRef = ref<ConfirmModalExposed | null>(null)
 const logModalRef = ref<LogModalExposed | null>(null)
+const isEditLog = ref<boolean>(false)
 
 async function fetchLogs(): Promise<void> {
   try {
@@ -131,7 +117,31 @@ function handleCreateNew() {
 }
 
 function handleCloseLogModal() {
+  isEditLog.value = false
+  selectedLogIds.value = []
   logModalRef.value?.modalRef?.close()
+}
+
+function handleUpdateLog() {
+  closeActionMenu()
+
+  // check if row is selected or not
+  if (!selectedLogIds.value.length) {
+    window.alert('No log selected')
+    return
+  }
+
+  // show validation for multiple row selection
+  if (selectedLogIds.value.length > 1) {
+    window.alert('Only 1 log can be updated at a time')
+    return
+  }
+
+  // open the LogModal and pre-populate the fields
+  isEditLog.value = true
+  logModalRef.value?.modalRef?.showModal()
+
+  // update api and send payload
 }
 
 onMounted(() => {
@@ -155,7 +165,20 @@ onBeforeUnmount(() => {
     />
 
     <!-- LOG MODAL -->
-    <LogModal ref="logModalRef" @close-modal="handleCloseLogModal" :fetch-logs="fetchLogs" />
+    <LogModal
+      ref="logModalRef"
+      @close-modal="handleCloseLogModal"
+      :fetch-logs="fetchLogs"
+      :logs="logs"
+      :selected-log-ids="selectedLogIds"
+      :is-edit-log="isEditLog"
+    />
+
+    <!-- CARDS -->
+    <div class="summary-cards">
+      <!-- STATUS DONUT CHART -->
+      <TaskSummary />
+    </div>
 
     <section class="data-grid">
       <!-- search bar -->
@@ -179,7 +202,7 @@ onBeforeUnmount(() => {
           <ul :class="['menu', showActionMenu ? 'active' : 'hidden']">
             <li class="menu-item" @click="handleCreateNew">Create New</li>
             <li class="menu-item" @click="handleDeleteLogs">Delete</li>
-            <li class="menu-item">Update</li>
+            <li class="menu-item" @click="handleUpdateLog">Update</li>
           </ul>
         </div>
       </div>
@@ -221,9 +244,13 @@ onBeforeUnmount(() => {
               <td>{{ log.taskType }}</td>
               <td>{{ log.taskStatus }}</td>
               <td>{{ log.priority }}</td>
-              <td class="uppercase">{{ log.notes }}</td>
+              <td class="notes" :title="log.notes">{{ log.notes }}</td>
               <td v-if="log.startedAt" class="date-cell">
-                {{ DateTime.fromISO(log.startedAt).toFormat('dd-LLL-yyyy') }}
+                <span class="date">{{
+                  DateTime.fromISO(log.startedAt).toFormat('dd-LLL-yyyy')
+                }}</span>
+                <span class="seperator">|</span>
+                <span class="date">{{ DateTime.fromISO(log.startedAt).toFormat('hh:mm a') }}</span>
               </td>
               <td v-else>N/A</td>
               <td v-if="log.completedAt" class="date-cell">
@@ -245,6 +272,10 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.summary-cards {
+  margin: 2rem;
+}
+
 .data-grid {
   margin: 2rem;
 }
@@ -367,5 +398,19 @@ table.logs td {
 
 .menu-item:hover {
   background-color: rgb(247, 247, 247);
+}
+
+.notes {
+  width: 100%;
+  max-width: 20rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.seperator {
+  padding-inline: 0.25rem;
+  color: rgb(159, 159, 159);
+  font-weight: 300;
 }
 </style>

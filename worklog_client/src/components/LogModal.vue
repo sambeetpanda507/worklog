@@ -1,9 +1,13 @@
 <script setup lang="ts">
+import type { ILog } from '@/interfaces'
 import { DateTime } from 'luxon'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 
 interface IProps {
   fetchLogs: () => Promise<void>
+  selectedLogIds: string[]
+  logs: ILog[]
+  isEditLog: boolean
 }
 
 interface IEmits {
@@ -13,7 +17,7 @@ interface IEmits {
 type TaskTypes = 'task' | 'bug' | 'story'
 type TaskProgress = 'backlog' | 'pending' | 'progress' | 'pr' | 'staging'
 
-const { fetchLogs } = defineProps<IProps>()
+const { fetchLogs, selectedLogIds, logs, isEditLog } = defineProps<IProps>()
 const modalRef = ref<HTMLDialogElement | null>(null)
 const taskName = ref<string>('')
 const taskType = ref<TaskTypes>('task')
@@ -23,10 +27,24 @@ const startedAt = ref<string>(DateTime.now().toFormat("yyyy-MM-dd'T'HH:mm"))
 const completedAt = ref<string>('')
 const notes = ref<string>('')
 const loading = ref<boolean>(false)
+const logId = ref<string | null>(null)
 const emit = defineEmits<IEmits>()
 defineExpose({ modalRef })
 
+function resetState() {
+  taskName.value = ''
+  taskType.value = 'task'
+  taskStatus.value = 'pending'
+  taskPriority.value = 1
+  startedAt.value = DateTime.now().toFormat("yyyy-MM-dd'T'HH:mm")
+  completedAt.value = ''
+  notes.value = ''
+  loading.value = false
+  logId.value = null
+}
+
 function handleClose() {
+  resetState()
   emit('closeModal')
 }
 
@@ -37,6 +55,8 @@ async function handleSubmit() {
       taskName: taskName.value,
       taskType: taskType.value,
       taskStatus: taskStatus.value,
+      priority: taskPriority.value,
+      ...(logId.value ? { logId: logId.value } : {}),
       ...(notes.value.trim().length > 0 ? { notes: notes.value } : {}),
       ...(startedAt.value.length > 0
         ? { startedAt: DateTime.fromFormat(startedAt.value, "yyyy-MM-dd'T'HH:mm").toISO() }
@@ -44,11 +64,11 @@ async function handleSubmit() {
       ...(completedAt.value.length > 0
         ? { completedAt: DateTime.fromFormat(completedAt.value, "yyyy-MM-dd'T'HH:mm").toISO() }
         : {}),
-      priority: taskPriority.value,
     }
 
+    const method = logId.value ? 'PUT' : 'POST'
     await fetch('http://localhost:5001/log', {
-      method: 'POST',
+      method,
       body: JSON.stringify(payload),
       headers: {
         'Content-Type': 'application/json',
@@ -61,9 +81,40 @@ async function handleSubmit() {
     console.log(e)
   } finally {
     loading.value = false
-    modalRef.value?.close()
+    handleClose()
   }
 }
+
+// pass is edit also
+watch(
+  [() => selectedLogIds, () => logs, () => isEditLog],
+  ([newSelectedLogIds, newLogs, isEditLog]) => {
+    if (isEditLog && newSelectedLogIds.length > 0) {
+      const selectedLogs = newLogs.filter((log) => newSelectedLogIds.includes(log.logId))
+      if (selectedLogs.length > 0) {
+        const selectedLog = selectedLogs[0]
+        logId.value = selectedLog.logId
+        taskName.value = selectedLog.taskName
+        taskType.value = selectedLog.taskType
+        taskStatus.value = selectedLog.taskStatus
+        taskPriority.value = selectedLog.priority
+        if (selectedLog.startedAt) {
+          startedAt.value = DateTime.fromISO(selectedLog.startedAt).toFormat("yyyy-MM-dd'T'HH:mm")
+        }
+
+        if (selectedLog.completedAt) {
+          completedAt.value = DateTime.fromISO(selectedLog.completedAt).toFormat(
+            "yyyy-MM-dd'T'HH:mm",
+          )
+        }
+
+        if (selectedLog.notes) {
+          notes.value = selectedLog.notes
+        }
+      }
+    }
+  },
+)
 </script>
 
 <template>
@@ -159,7 +210,6 @@ async function handleSubmit() {
 
         <!-- completed at date -->
         <div class="input-group">
-          {{ completedAt }}
           <label for="completedAt">End On</label>
           <input type="datetime-local" name="completedAt" id="completedAt" v-model="completedAt" />
         </div>
@@ -171,7 +221,9 @@ async function handleSubmit() {
       </div>
 
       <div class="form-action">
-        <button type="submit" class="primary-button">{{ loading ? 'LOADING...' : 'SAVE' }}</button>
+        <button type="submit" class="primary-button">
+          {{ loading ? 'LOADING...' : logId ? 'EDIT' : 'SAVE' }}
+        </button>
       </div>
     </form>
   </dialog>

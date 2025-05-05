@@ -17,6 +17,8 @@
   },
   "dependencies": {
     "@types/luxon": "^3.6.2",
+    "highcharts": "^12.2.0",
+    "highcharts-vue": "^2.0.1",
     "luxon": "^3.6.1",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"
