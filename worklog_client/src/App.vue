@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { DateTime } from 'luxon'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import LogModal from '@/components/LogModal.vue'
-import type { ILog } from './interfaces'
 import TaskSummary from '@/components/TaskSummary.vue'
+import { DateTime } from 'luxon'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
+import TypeSummary from './components/TypeSummary.vue'
+import type { ILog } from './interfaces'
 
 type ConfirmModalExposed = {
   modalRef: HTMLDialogElement | null
@@ -178,6 +179,9 @@ onBeforeUnmount(() => {
     <div class="summary-cards">
       <!-- STATUS DONUT CHART -->
       <TaskSummary />
+
+      <!-- STATUS DONUT CHART -->
+      <TypeSummary />
     </div>
 
     <section class="data-grid">
@@ -274,6 +278,14 @@ onBeforeUnmount(() => {
 <style scoped>
 .summary-cards {
   margin: 2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 40rem) {
+  .summary-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .data-grid {

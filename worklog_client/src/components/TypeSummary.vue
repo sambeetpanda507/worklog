@@ -1,6 +1,6 @@
 // DonutChart.vue
 <script setup lang="ts">
-import type { ITaskStatusSummary } from '@/interfaces'
+import type { ITaskTypeSummary } from '@/interfaces'
 import Highcharts from 'highcharts'
 import { onMounted, onUnmounted, ref } from 'vue'
 
@@ -17,17 +17,17 @@ const chartData = ref<ChartData[]>([] as ChartData[])
 const getChartData = async () => {
   try {
     isLoading.value = true
-    const response = await fetch('http://localhost:5001/status-summary', {
+    const response = await fetch('http://localhost:5001/type-summary', {
       method: 'GET',
       headers: { Accept: 'application/json' },
     })
 
     if (response.status != 200) {
-      console.log('Some error occurred while fetching task status summary data')
+      console.log('Some error occurred while fetching task type summary data')
     } else {
-      const { statusSummary }: { statusSummary: ITaskStatusSummary[] } = await response.json()
-      chartData.value = statusSummary.map(({ taskStatus, percentage }) => ({
-        name: taskStatus.toUpperCase(),
+      const { typeSummary }: { typeSummary: ITaskTypeSummary[] } = await response.json()
+      chartData.value = typeSummary.map(({ taskType, percentage }) => ({
+        name: taskType.toUpperCase(),
         y: percentage,
       }))
     }
@@ -52,7 +52,7 @@ onMounted(() => {
           type: 'pie',
         },
         title: {
-          text: 'Task Status Summary',
+          text: 'Task Type Summary',
         },
         tooltip: {
           pointFormat: '{series.name}: <b>{point.percentage:.0f}' + '%' + '</b>',
@@ -90,7 +90,7 @@ onMounted(() => {
         },
         series: [
           {
-            name: 'STATUS',
+            name: 'TYPE',
             data: chartData.value,
             type: 'pie',
           },

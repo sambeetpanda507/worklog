@@ -18,3 +18,9 @@ export interface ITaskStatusSummary {
   statusCount: number
   percentage: number
 }
+
+export interface ITaskTypeSummary {
+  taskType: string
+  statusCount: number
+  percentage: number
+}
