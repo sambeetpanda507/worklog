@@ -67,7 +67,7 @@ async function handleSubmit() {
     }
 
     const method = logId.value ? 'PUT' : 'POST'
-    await fetch('http://localhost:5001/log', {
+    const res = await fetch('http://localhost:5001/log', {
       method,
       body: JSON.stringify(payload),
       headers: {
@@ -75,6 +75,12 @@ async function handleSubmit() {
         Accept: 'application/json',
       },
     })
+
+    if (res.status == 400) {
+      const errorMessage = await res.text()
+      window.alert(errorMessage)
+      return
+    }
 
     await fetchLogs()
   } catch (e) {

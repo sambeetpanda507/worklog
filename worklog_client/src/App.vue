@@ -3,7 +3,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 import LogModal from '@/components/LogModal.vue'
 import TaskSummary from '@/components/TaskSummary.vue'
 import { DateTime } from 'luxon'
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import TypeSummary from './components/TypeSummary.vue'
 import type { ILog } from './interfaces'
 
@@ -25,14 +25,32 @@ const showDeleteConfirmation = ref<boolean>(false)
 const confirmDialogRef = ref<ConfirmModalExposed | null>(null)
 const logModalRef = ref<LogModalExposed | null>(null)
 const isEditLog = ref<boolean>(false)
+const sortBy = ref<string>('created_at')
+const sortOrder = ref<string>('desc')
+const columns = ref<{ label: string; value: string }[]>([
+  { label: 'Task Name', value: 'task_name' },
+  { label: 'Task Type', value: 'task_type' },
+  { label: 'Task Status', value: 'task_status' },
+  { label: 'Priority', value: 'priority' },
+  { label: 'Notes', value: 'notes' },
+  { label: 'Started At', value: 'started_at' },
+  { label: 'Completed At', value: 'completed_at' },
+  { label: 'Created At', value: 'created_at' },
+  { label: 'Updated At', value: 'updated_at' },
+])
 
-async function fetchLogs(): Promise<void> {
+async function fetchLogs(sortBy?: string, sortOrder?: string): Promise<void> {
   try {
     loading.value = true
     const baseURL: string = 'http://localhost:5001/logs'
     const searchParams = new URLSearchParams()
     if (searchValue.value.trim().length > 0) {
       searchParams.set('s', searchValue.value)
+    }
+
+    if (sortBy && sortOrder) {
+      searchParams.set('sortBy', sortBy)
+      searchParams.set('sortOrder', sortOrder)
     }
 
     const url: string = `${baseURL}?${searchParams.toString()}`
@@ -145,13 +163,29 @@ function handleUpdateLog() {
   // update api and send payload
 }
 
+function handleSort(col: string) {
+  if (col == sortBy.value) {
+    if (sortOrder.value == 'asc') {
+      sortOrder.value = 'desc'
+    } else {
+      sortOrder.value = 'asc'
+    }
+  }
+
+  sortBy.value = col
+}
+
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
-  fetchLogs()
+  fetchLogs(sortBy.value, sortOrder.value)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside)
+})
+
+watch([sortBy, sortOrder], ([newSortBy, newSortOrder]) => {
+  fetchLogs(newSortBy, newSortOrder)
 })
 </script>
 
@@ -186,7 +220,7 @@ onBeforeUnmount(() => {
 
     <section class="data-grid">
       <!-- search bar -->
-      <form class="search-box" @submit.prevent="fetchLogs">
+      <form class="search-box" @submit.prevent="() => fetchLogs(sortBy, sortOrder)">
         <input type="text" v-model="searchValue" placeholder="Search logs or notes..." required />
         <button type="submit" class="primary-button search-button">SEARCH</button>
         <button
@@ -212,23 +246,27 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="logs-container">
-        <p v-if="loading">Loading...</p>
-        <table v-else class="logs">
+        <table class="logs">
           <thead>
             <tr>
               <th>
                 <input type="checkbox" id="allLogs" class="checkbox" @change="handleSelectAll" />
               </th>
-              <th>Log ID</th>
-              <th>Task Name</th>
-              <th>Task Type</th>
-              <th>Task Status</th>
-              <th>Priority</th>
-              <th>Notes</th>
-              <th>Started At</th>
-              <th>Completed At</th>
-              <th>Created At</th>
-              <th>Updated At</th>
+              <th v-for="column in columns" :key="column.value">
+                <span class="task-header-title">
+                  <span class="col-name">{{ column.label }}</span>
+                  <span
+                    :class="[
+                      'material-symbols-outlined',
+                      'arrow-icon',
+                      sortBy == column.value && 'active',
+                    ]"
+                    @click.prevent="() => handleSort(column.value)"
+                  >
+                    {{ sortOrder == 'asc' ? 'arrow_upward' : 'arrow_downward' }}
+                  </span>
+                </span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -243,7 +281,6 @@ onBeforeUnmount(() => {
                   v-model="selectedLogIds"
                 />
               </td>
-              <td>{{ log.logId }}</td>
               <td>{{ log.taskName }}</td>
               <td>{{ log.taskType }}</td>
               <td>{{ log.taskStatus }}</td>
@@ -347,6 +384,21 @@ th {
   font-weight: 500;
 }
 
+.task-header-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: bold;
+}
+
+.col-name {
+  font-weight: 500;
+}
+
+.task-header-title:hover > .arrow-icon {
+  opacity: 1;
+}
+
 table.logs tbody tr:nth-child(even) {
   background-color: #f9f9f9;
 }
@@ -424,5 +476,16 @@ table.logs td {
   padding-inline: 0.25rem;
   color: rgb(159, 159, 159);
   font-weight: 300;
+}
+
+.arrow-icon {
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.arrow-icon.active {
+  opacity: 1;
 }
 </style>
