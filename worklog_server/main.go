@@ -81,8 +81,10 @@ func ConnectToDB() *sql.DB {
 
 // get all the logs
 type GetAllLogsOpts struct {
-	db *sql.DB
-	s  string
+	db        *sql.DB
+	s         string
+	sortBy    string
+	sortOrder string
 }
 
 func getFullTextSearchQueryOnLogs(userQuery string) string {
@@ -118,6 +120,20 @@ func getFullTextSearchQueryOnLogs(userQuery string) string {
 
 func GetAllLogs(options *GetAllLogsOpts) (*sql.Rows, error) {
 	var q string
+	var sortBy string
+	var sortOrder string
+
+	if options.sortBy == "" {
+		sortBy = "updated_at"
+	} else {
+		sortBy = options.sortBy
+	}
+
+	if options.sortOrder == "" {
+		sortOrder = "desc"
+	} else {
+		sortOrder = options.sortOrder
+	}
 
 	// check if options have search value
 	if strings.TrimSpace(options.s) != "" {
@@ -131,7 +147,7 @@ func GetAllLogs(options *GetAllLogsOpts) (*sql.Rows, error) {
 		// 	options.s,
 		// )
 	} else {
-		q = `select
+		q = fmt.Sprintf(`select
 			log_id,
 			task_name,
 			task_type,
@@ -142,7 +158,7 @@ func GetAllLogs(options *GetAllLogsOpts) (*sql.Rows, error) {
 			created_at,
 			updated_at,
 			priority 
-		from logs order by updated_at desc;`
+		from logs order by %s %s;`, sortBy, sortOrder)
 	}
 
 	fmt.Println("[query]: ", q)
@@ -220,7 +236,23 @@ func handleCreateLog(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		body.Priority = &defaultVal
 	}
 
-	q := "insert into logs (task_name, task_type, task_status, notes, started_at, completed_at, priority) values ($1, $2, $3, $4, $5, $6, $7)"
+	// check for duplicate keys
+	q := "select 1 from logs where task_name = $1 limit 1"
+	row := db.QueryRow(q, body.TaskName)
+	var exists int
+	err = row.Scan(&exists)
+	if err == sql.ErrNoRows {
+		// no duplicate found, proceed
+	} else if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	} else {
+		// duplicate found
+		http.Error(w, "Task name already exists", http.StatusBadRequest)
+		return
+	}
+
+	q = "insert into logs (task_name, task_type, task_status, notes, started_at, completed_at, priority) values ($1, $2, $3, $4, $5, $6, $7)"
 	_, err = db.Exec(
 		q,
 		body.TaskName,
@@ -515,10 +547,12 @@ func main() {
 
 		// get the search params
 		searchVal := r.URL.Query().Get("s")
+		sortBy := r.URL.Query().Get("sortBy")
+		sortOrder := r.URL.Query().Get("sortOrder")
 
 		// lexical search
 		// for task_name, task_type, task_status, notes
-		rows, err := GetAllLogs(&GetAllLogsOpts{db: db, s: searchVal})
+		rows, err := GetAllLogs(&GetAllLogsOpts{db: db, s: searchVal, sortBy: sortBy, sortOrder: sortOrder})
 		if err != nil {
 			if err == sql.ErrNoRows {
 				http.Error(w, err.Error(), http.StatusNotFound)
