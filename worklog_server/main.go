@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -85,34 +86,72 @@ type GetAllLogsOpts struct {
 	s         string
 	sortBy    string
 	sortOrder string
+	limit     int16
+	page      int16
 }
 
-func getFullTextSearchQueryOnLogs(userQuery string) string {
+func getFullTextSearchQueryOnLogs(userQuery string, limit int16, offset int16) string {
 	tsQueryText := strings.Replace(userQuery, " ", " & ", -1)
 	fmt.Println("tsQueryText: ", tsQueryText)
+	// q := fmt.Sprintf(`
+	// 	select
+	// 		log_id,
+	// 		task_name,
+	// 		task_type,
+	// 		task_status,
+	// 		notes,
+	// 		started_at,
+	// 		completed_at,
+	// 		created_at,
+	// 		updated_at,
+	// 		priority,
+	// 		(ceil((select count(*) from logs) / %d)) as total_pages
+	// 	from logs
+	// 	where ts @@ to_tsquery('english', '%s')
+	// 	or similarity('%s', task_name || ' ' || notes) > 0
+	// 	order by
+	// 		ts_rank(ts, to_tsquery('english', '%s')) desc,
+	// 		similarity('%s', task_name || ' ' || notes) desc
+	// 	offset %d limit %d`,
+	// 	limit,
+	// 	tsQueryText,
+	// 	userQuery,
+	// 	tsQueryText,
+	// 	userQuery,
+	// 	offset,
+	// 	limit,
+	// )
+
 	q := fmt.Sprintf(`
-		select
-			log_id,
-			task_name,
-			task_type,
-			task_status,
-			notes,
-			started_at,
-			completed_at,
-			created_at,
-			updated_at,
-			priority 
-		from logs
-		where ts @@ to_tsquery('english', '%s') 
-		or similarity('%s', task_name || ' ' || notes) > 0
-		order by 
-			ts_rank(ts, to_tsquery('english', '%s')) desc, 
+		with filtered_logs as (
+			select * from logs
+			where ts @@ to_tsquery('english', '%s')
+			or similarity('%s', task_name || ' ' || notes) > 0
+		) 
+	 	select
+	 		log_id,
+	 		task_name,
+	 		task_type,
+	 		task_status,
+	 		notes,
+	 		started_at,
+	 		completed_at,
+	 		created_at,
+	 		updated_at,
+	 		priority,
+	 		(ceil(count(*) over() / %f)) as total_pages
+		from filtered_logs
+		order by
+			ts_rank(ts, to_tsquery('english', '%s')) desc,
 			similarity('%s', task_name || ' ' || notes) desc
-		`,
+		offset %d limit %d`,
 		tsQueryText,
 		userQuery,
+		float64(limit),
 		tsQueryText,
 		userQuery,
+		offset,
+		limit,
 	)
 
 	return q
@@ -122,6 +161,8 @@ func GetAllLogs(options *GetAllLogsOpts) (*sql.Rows, error) {
 	var q string
 	var sortBy string
 	var sortOrder string
+	var limit int16
+	var offset int16
 
 	if options.sortBy == "" {
 		sortBy = "updated_at"
@@ -135,9 +176,21 @@ func GetAllLogs(options *GetAllLogsOpts) (*sql.Rows, error) {
 		sortOrder = options.sortOrder
 	}
 
+	if options.limit > 0 {
+		limit = options.limit
+	} else {
+		limit = 10
+	}
+
+	if options.page > 0 {
+		offset = options.page * limit
+	} else {
+		offset = 0
+	}
+
 	// check if options have search value
 	if strings.TrimSpace(options.s) != "" {
-		q = getFullTextSearchQueryOnLogs(options.s)
+		q = getFullTextSearchQueryOnLogs(options.s, limit, offset)
 		// q = fmt.Sprintf(
 		// 	`select * from logs
 		// 	where task_name ilike '%%%s%%'
@@ -157,8 +210,10 @@ func GetAllLogs(options *GetAllLogsOpts) (*sql.Rows, error) {
 			completed_at,
 			created_at,
 			updated_at,
-			priority 
-		from logs order by %s %s;`, sortBy, sortOrder)
+			priority,
+			(ceil((select count(*) from logs) / %f)) as total_pages 
+		from logs order by %s %s 
+		offset %d limit %d;`, float64(limit), sortBy, sortOrder, offset, limit)
 	}
 
 	fmt.Println("[query]: ", q)
@@ -549,10 +604,23 @@ func main() {
 		searchVal := r.URL.Query().Get("s")
 		sortBy := r.URL.Query().Get("sortBy")
 		sortOrder := r.URL.Query().Get("sortOrder")
+		limitStr := r.URL.Query().Get("limit")
+		pageStr := r.URL.Query().Get("page")
+
+		limit, err := strconv.ParseInt(limitStr, 10, 64)
+		if err != nil {
+			http.Error(w, "Invalid limit value", http.StatusUnprocessableEntity)
+			return
+		}
+
+		page, err := strconv.ParseInt(pageStr, 10, 64)
+		if err != nil {
+			http.Error(w, "Invalid page value", http.StatusUnprocessableEntity)
+		}
 
 		// lexical search
 		// for task_name, task_type, task_status, notes
-		rows, err := GetAllLogs(&GetAllLogsOpts{db: db, s: searchVal, sortBy: sortBy, sortOrder: sortOrder})
+		rows, err := GetAllLogs(&GetAllLogsOpts{db: db, s: searchVal, sortBy: sortBy, sortOrder: sortOrder, limit: int16(limit), page: int16(page)})
 		if err != nil {
 			if err == sql.ErrNoRows {
 				http.Error(w, err.Error(), http.StatusNotFound)
@@ -575,6 +643,7 @@ func main() {
 			CreatedAt   time.Time  `json:"createdAt"`
 			UpdatedAt   time.Time  `json:"updatedAt"`
 			Priority    int        `json:"priority"`
+			TotalPages  int        `json:"totalPages"`
 		}
 
 		var logs []Log
@@ -597,6 +666,7 @@ func main() {
 				&logEntry.CreatedAt,
 				&logEntry.UpdatedAt,
 				&logEntry.Priority,
+				&logEntry.TotalPages,
 			)
 
 			if err != nil {
@@ -948,6 +1018,89 @@ func main() {
 		json.NewEncoder(w).Encode(struct {
 			DailyTasks []DailyTask `json:"dailyTasks"`
 		}{DailyTasks: dailyTasks})
+	})
+
+	mux.HandleFunc("GET /completed-task-count", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		view := r.URL.Query().Get("v")
+		duration := r.URL.Query().Get("d")
+
+		if view == "" {
+			view = "week"
+		}
+
+		if duration == "" {
+			duration = "1 months"
+		}
+
+		var interval string
+		if view == "week" {
+			interval = "1 week"
+		} else {
+			interval = "1 month"
+		}
+
+		q := fmt.Sprintf(`
+			WITH
+				DATE_SERIES AS (
+					SELECT
+						GENERATE_SERIES(
+							DATE_TRUNC('%s', NOW() - INTERVAL '%s'),
+							DATE_TRUNC('%s', NOW()),
+							INTERVAL '%s'
+						) AS DATE_START
+				),
+				LOGS_BY_VIEW AS (
+					SELECT
+						DATE_TRUNC('%s', COMPLETED_AT) AS DATE_START,
+						COUNT(TASK_NAME) AS TASK_COUNT
+					FROM
+						LOGS
+					GROUP BY
+						DATE_START
+				)
+			SELECT
+				D.DATE_START,
+				COALESCE(L.TASK_COUNT, 0) AS TASK_COUNT
+			FROM
+				DATE_SERIES D
+				LEFT JOIN LOGS_BY_VIEW L ON D.DATE_START = L.DATE_START
+			ORDER BY
+				DATE_START;
+		`, view, duration, view, interval, view)
+
+		fmt.Println("[query]: ", q)
+
+		rows, err := db.Query(q)
+		if err != nil {
+			fmt.Println(err.Error())
+			http.Error(w, "Something wen't wrong while getting completed task count", http.StatusInternalServerError)
+			return
+		}
+
+		defer rows.Close()
+
+		type CompletedCount struct {
+			CompletedAt time.Time `json:"completedAt"`
+			TaskCount   int       `json:"taskCount"`
+		}
+
+		var completedCounts []CompletedCount
+		for rows.Next() {
+			var completedCount CompletedCount
+			rows.Scan(
+				&completedCount.CompletedAt,
+				&completedCount.TaskCount,
+			)
+
+			completedCounts = append(completedCounts, completedCount)
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(struct {
+			Message        string           `json:"message"`
+			CompletedCount []CompletedCount `json:"completedCount"`
+		}{Message: "ok", CompletedCount: completedCounts})
 	})
 
 	if err := http.ListenAndServe(":"+serverPort, corsMiddleware(mux)); err != nil {
