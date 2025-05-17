@@ -1,4 +1,3 @@
-// DonutChart.vue
 <script setup lang="ts">
 import type { ITaskStatusSummary } from '@/interfaces'
 import Highcharts from 'highcharts'
@@ -44,6 +43,35 @@ onMounted(() => {
         lang: {
           decimalPoint: '.',
           thousandsSep: ',',
+          months: [
+            'January',
+            'February',
+            'March',
+            'April',
+            'May',
+            'June',
+            'July',
+            'August',
+            'September',
+            'October',
+            'November',
+            'December',
+          ],
+          weekdays: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+          shortMonths: [
+            'Jan',
+            'Feb',
+            'Mar',
+            'Apr',
+            'May',
+            'Jun',
+            'Jul',
+            'Aug',
+            'Sep',
+            'Oct',
+            'Nov',
+            'Dec',
+          ],
         },
       })
 

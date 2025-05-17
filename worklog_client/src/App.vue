@@ -3,9 +3,10 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 import LogModal from '@/components/LogModal.vue'
 import TaskSummary from '@/components/TaskSummary.vue'
 import { DateTime } from 'luxon'
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch, computed } from 'vue'
 import TypeSummary from './components/TypeSummary.vue'
 import type { ILog } from './interfaces'
+import TaskCompletionSummary from './components/TaskCompletionSummary.vue'
 
 type ConfirmModalExposed = {
   modalRef: HTMLDialogElement | null
@@ -13,6 +14,13 @@ type ConfirmModalExposed = {
 
 type LogModalExposed = {
   modalRef: HTMLDialogElement | null
+}
+
+type FetchParams = {
+  sortBy?: string
+  sortOrder?: string
+  page: number
+  limit: number
 }
 
 const logs = ref<ILog[]>([])
@@ -38,12 +46,24 @@ const columns = ref<{ label: string; value: string }[]>([
   { label: 'Created At', value: 'created_at' },
   { label: 'Updated At', value: 'updated_at' },
 ])
+const page = ref<number>(0)
+const limit = ref<number>(10)
 
-async function fetchLogs(sortBy?: string, sortOrder?: string): Promise<void> {
+const totalPages = computed(() => {
+  if (logs.value.length == 0) {
+    return 0
+  } else {
+    return logs.value[0].totalPages
+  }
+})
+
+async function fetchLogs({ sortBy, sortOrder, page, limit }: FetchParams): Promise<void> {
   try {
     loading.value = true
     const baseURL: string = 'http://localhost:5001/logs'
     const searchParams = new URLSearchParams()
+    searchParams.set('page', page.toString())
+    searchParams.set('limit', limit.toString())
     if (searchValue.value.trim().length > 0) {
       searchParams.set('s', searchValue.value)
     }
@@ -71,7 +91,7 @@ async function fetchLogs(sortBy?: string, sortOrder?: string): Promise<void> {
 
 async function handleClearSearch() {
   searchValue.value = ''
-  await fetchLogs()
+  await fetchLogs({ page: page.value, limit: limit.value })
 }
 
 function handleSelectAll(e: Event) {
@@ -102,7 +122,7 @@ async function handleConfirmDeleteLogs() {
     const url: string = `${baseURL}?${searchParms.toString()}`
     await fetch(url, { method: 'DELETE' })
     selectedLogIds.value = []
-    await fetchLogs()
+    await fetchLogs({ page: page.value, limit: limit.value })
   } catch (e: unknown) {
     console.error(e)
   } finally {
@@ -175,22 +195,43 @@ function handleSort(col: string) {
   sortBy.value = col
 }
 
+function handlePageIncrement() {
+  if (page.value < totalPages.value - 1) {
+    page.value += 1
+  }
+}
+
+function handlePageDecrement() {
+  if (page.value > 0) {
+    page.value -= 1
+  }
+}
+
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
-  fetchLogs(sortBy.value, sortOrder.value)
+  fetchLogs({
+    sortBy: sortBy.value,
+    sortOrder: sortOrder.value,
+    page: page.value,
+    limit: limit.value,
+  })
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside)
 })
 
-watch([sortBy, sortOrder], ([newSortBy, newSortOrder]) => {
-  fetchLogs(newSortBy, newSortOrder)
+watch([sortBy, sortOrder, page, limit], ([newSortBy, newSortOrder, newPageCount, newLimit]) => {
+  fetchLogs({ sortBy: newSortBy, sortOrder: newSortOrder, page: newPageCount, limit: newLimit })
 })
 </script>
 
 <template>
   <main class="container">
+    <h1 class="page-title">
+      Task Management Dashboard <span class="material-symbols-outlined title-icon"> list_alt </span>
+    </h1>
+
     <ConfirmModal
       ref="confirmDialogRef"
       :confirm-button-text="'CONFIRM'"
@@ -203,11 +244,16 @@ watch([sortBy, sortOrder], ([newSortBy, newSortOrder]) => {
     <LogModal
       ref="logModalRef"
       @close-modal="handleCloseLogModal"
-      :fetch-logs="fetchLogs"
+      :fetch-logs="() => fetchLogs({ page, limit })"
       :logs="logs"
       :selected-log-ids="selectedLogIds"
       :is-edit-log="isEditLog"
     />
+
+    <!-- TASK COMPLETION SYMMARY -->
+    <div class="task-completion-summary">
+      <TaskCompletionSummary />
+    </div>
 
     <!-- CARDS -->
     <div class="summary-cards">
@@ -220,18 +266,23 @@ watch([sortBy, sortOrder], ([newSortBy, newSortOrder]) => {
 
     <section class="data-grid">
       <!-- search bar -->
-      <form class="search-box" @submit.prevent="() => fetchLogs(sortBy, sortOrder)">
-        <input type="text" v-model="searchValue" placeholder="Search logs or notes..." required />
-        <button type="submit" class="primary-button search-button">SEARCH</button>
-        <button
-          v-if="searchValue.trim().length > 0"
-          type="button"
-          @click="handleClearSearch"
-          class="clear-button danger-button"
+      <div class="search-box-container">
+        <form
+          class="search-box"
+          @submit.prevent="() => fetchLogs({ sortBy, sortOrder, page, limit })"
         >
-          Clear
-        </button>
-      </form>
+          <input type="text" v-model="searchValue" placeholder="Search logs or notes..." required />
+          <button type="submit" class="primary-button search-button">SEARCH</button>
+          <button
+            v-if="searchValue.trim().length > 0"
+            type="button"
+            @click="handleClearSearch"
+            class="clear-button danger-button"
+          >
+            Clear
+          </button>
+        </form>
+      </div>
 
       <!-- action buttion -->
       <div class="table-buttons">
@@ -245,74 +296,131 @@ watch([sortBy, sortOrder], ([newSortBy, newSortOrder]) => {
         </div>
       </div>
 
-      <div class="logs-container">
-        <table class="logs">
-          <thead>
-            <tr>
-              <th>
-                <input type="checkbox" id="allLogs" class="checkbox" @change="handleSelectAll" />
-              </th>
-              <th v-for="column in columns" :key="column.value">
-                <span class="task-header-title">
-                  <span class="col-name">{{ column.label }}</span>
-                  <span
-                    :class="[
-                      'material-symbols-outlined',
-                      'arrow-icon',
-                      sortBy == column.value && 'active',
-                    ]"
-                    @click.prevent="() => handleSort(column.value)"
-                  >
-                    {{ sortOrder == 'asc' ? 'arrow_upward' : 'arrow_downward' }}
+      <div class="table-container">
+        <div class="logs-container">
+          <table class="logs">
+            <thead>
+              <tr>
+                <th>
+                  <input type="checkbox" id="allLogs" class="checkbox" @change="handleSelectAll" />
+                </th>
+                <th v-for="column in columns" :key="column.value">
+                  <span class="task-header-title">
+                    <span class="col-name">{{ column.label }}</span>
+                    <span
+                      :class="[
+                        'material-symbols-outlined',
+                        'arrow-icon',
+                        sortBy == column.value && 'active',
+                      ]"
+                      @click.prevent="() => handleSort(column.value)"
+                    >
+                      {{ sortOrder == 'asc' ? 'arrow_upward' : 'arrow_downward' }}
+                    </span>
                   </span>
-                </span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <!-- Iterate over logs and render logId -->
-            <tr v-for="log of logs" :key="log.logId">
-              <td>
-                <input
-                  type="checkbox"
-                  id="log"
-                  class="checkbox"
-                  :value="log.logId"
-                  v-model="selectedLogIds"
-                />
-              </td>
-              <td>{{ log.taskName }}</td>
-              <td>{{ log.taskType }}</td>
-              <td>{{ log.taskStatus }}</td>
-              <td>{{ log.priority }}</td>
-              <td class="notes" :title="log.notes">{{ log.notes }}</td>
-              <td v-if="log.startedAt" class="date-cell">
-                <span class="date">{{
-                  DateTime.fromISO(log.startedAt).toFormat('dd-LLL-yyyy')
-                }}</span>
-                <span class="seperator">|</span>
-                <span class="date">{{ DateTime.fromISO(log.startedAt).toFormat('hh:mm a') }}</span>
-              </td>
-              <td v-else>N/A</td>
-              <td v-if="log.completedAt" class="date-cell">
-                {{ DateTime.fromISO(log.completedAt).toFormat('dd-LLL-yyyy') }}
-              </td>
-              <td v-else>N/A</td>
-              <td class="date-cell">
-                {{ DateTime.fromISO(log.createdAt).toFormat('dd-LLL-yyyy') }}
-              </td>
-              <td class="date-cell">
-                {{ DateTime.fromISO(log.updatedAt).toFormat('dd-LLL-yyyy') }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Iterate over logs and render logId -->
+              <tr v-for="log of logs" :key="log.logId">
+                <td>
+                  <div class="checkbox-container">
+                    <input
+                      type="checkbox"
+                      id="log"
+                      class="checkbox"
+                      :value="log.logId"
+                      v-model="selectedLogIds"
+                    />
+                  </div>
+                </td>
+                <td>{{ log.taskName }}</td>
+                <td>{{ log.taskType }}</td>
+                <td>{{ log.taskStatus }}</td>
+                <td>{{ log.priority }}</td>
+                <td class="notes" :title="log.notes">{{ log.notes }}</td>
+                <td v-if="log.startedAt" class="date-cell">
+                  <span class="date">{{
+                    DateTime.fromISO(log.startedAt).toFormat('dd-LLL-yyyy')
+                  }}</span>
+                  <span class="seperator">|</span>
+                  <span class="date">{{
+                    DateTime.fromISO(log.startedAt).toFormat('hh:mm a')
+                  }}</span>
+                </td>
+                <td v-else>N/A</td>
+                <td v-if="log.completedAt" class="date-cell">
+                  {{ DateTime.fromISO(log.completedAt).toFormat('dd-LLL-yyyy') }}
+                </td>
+                <td v-else>N/A</td>
+                <td class="date-cell">
+                  {{ DateTime.fromISO(log.createdAt).toFormat('dd-LLL-yyyy') }}
+                </td>
+                <td class="date-cell">
+                  {{ DateTime.fromISO(log.updatedAt).toFormat('dd-LLL-yyyy') }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Table pagination container -->
+        <div class="pagination-container">
+          <span class="material-symbols-outlined decrement-icon" @click="handlePageDecrement">
+            chevron_left
+          </span>
+          <span class="page-number">{{ page + 1 }}</span>
+          <span class="highphen">-</span>
+          <span class="total-pages">{{ totalPages }}</span>
+          <span class="material-symbols-outlined increment-icon" @click="handlePageIncrement">
+            chevron_right
+          </span>
+        </div>
       </div>
     </section>
   </main>
 </template>
 
 <style scoped>
+
+.checkbox-container {
+  display: flex;
+  align-items: center;
+  justify-self: center
+}
+
+.page-title {
+  text-align: center;
+  margin-bottom: 5rem;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  justify-content: center;
+  gap: 1rem;
+  font-size: 1.5rem;
+}
+
+.title-icon {
+  font-size: 2rem;
+  display: none;
+}
+
+@media (min-width:40rem) {
+  .page-title {
+    font-size: 2rem;
+  }
+
+  .title-icon {
+    display: block;
+  }
+}
+
+
+.task-completion-summary {
+  margin: 2rem;
+}
+
 .summary-cards {
   margin: 2rem;
   display: grid;
@@ -329,12 +437,17 @@ watch([sortBy, sortOrder], ([newSortBy, newSortOrder]) => {
   margin: 2rem;
 }
 
-.search-box {
+.search-box-container {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 0.5rem;
+  background-color: #fff;
   margin-bottom: 1rem;
+  border-radius: 0.25rem;
+}
+
+.search-box {
   border: 2px solid #cbd5e1;
-  /* slate-300 */
   display: flex;
-  padding: 0.875rem;
   border-radius: 0.25rem;
   padding: 0.5rem 1rem;
   font-size: 0.95rem;
@@ -358,8 +471,6 @@ watch([sortBy, sortOrder], ([newSortBy, newSortOrder]) => {
 
 .logs-container {
   overflow: auto;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  border-radius: 0.25rem;
 }
 
 .logs {
@@ -487,5 +598,38 @@ table.logs td {
 
 .arrow-icon.active {
   opacity: 1;
+}
+
+.pagination-container {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+  gap: 0.25rem;
+  padding: 1rem;
+  position: sticky;
+  left: 0;
+  bottom: 0;
+}
+
+.decrement-icon,
+.increment-icon {
+  font-size: 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+
+.page-number,
+.total-pages {
+  font-size: 0.875rem;
+  display: block;
+  font-weight: 600;
+}
+
+.table-container {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  border-radius: 0.25rem;
+  overflow: hidden;
 }
 </style>

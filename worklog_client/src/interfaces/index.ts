@@ -11,6 +11,7 @@ export interface ILog {
   completedAt?: string
   createdAt: string
   updatedAt: string
+  totalPages: number
 }
 
 export interface ITaskStatusSummary {

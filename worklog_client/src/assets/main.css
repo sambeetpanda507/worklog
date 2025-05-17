@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Playwrite+RO:wght@100..400&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
 
 :root {
-  --primary: #4f46e5;
+  --primary: #14105e;
   --danger: #dc2626;
 }
 
@@ -26,6 +26,10 @@
   .container {
     padding: 1rem 2rem;
   }
+}
+
+body {
+  background-color: rgb(251, 251, 251);
 }
 
 button {
@@ -91,8 +95,13 @@ button {
 
 .material-symbols-outlined {
   font-variation-settings:
-  'FILL' 0,
-  'wght' 400,
-  'GRAD' 0,
-  'opsz' 25
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 25;
+}
+
+input[type='checkbox'] {
+  height: 1rem;
+  width: 1rem;
 }
