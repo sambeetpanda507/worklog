@@ -1103,6 +1103,53 @@ func main() {
 		}{Message: "ok", CompletedCount: completedCounts})
 	})
 
+	mux.HandleFunc("GET /task-summary", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		q := `
+			SELECT
+				COUNT(*) AS TOTAL_TASKS,
+				(
+					SELECT
+						COUNT(*)
+					FROM
+						LOGS
+					WHERE
+						TASK_TYPE = 'bug'
+				) AS TOTAL_BUGS,
+				(
+					SELECT
+						COUNT(*)
+					FROM
+						LOGS
+					WHERE
+						TASK_STATUS = 'progress'
+				) AS TOTAL_PROGRESS_TASKS,
+				(
+					SELECT
+						COUNT(*)
+					FROM
+						LOGS
+					WHERE
+						PRIORITY = 10
+				) AS HIGHEST_PRIORITY_TASKS
+			FROM
+				LOGS;
+		`
+
+		rows, err := db.Query(q)
+		if err != nil {
+			http.Error(w, "Something wen't wrong while generate summary", http.StatusInternalServerError)
+			return
+		}
+
+		defer rows.Close()
+		for rows.Next() {
+
+		}
+
+		w.WriteHeader(http.StatusOK)
+	})
+
 	if err := http.ListenAndServe(":"+serverPort, corsMiddleware(mux)); err != nil {
 		panic(err)
 	}
