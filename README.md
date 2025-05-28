@@ -26,11 +26,8 @@ A comprehensive work log management application built with modern web technologi
 - **Rich Notes**: Add detailed notes and descriptions for each work item
 
 ### Advanced Search Capabilities
-- **Fuzzy Search**: Levenshtein distance-based search for finding similar task names
 - **Trigram Similarity**: PostgreSQL trigram matching for flexible text search
 - **Full-Text Search**: Lexeme-based search using PostgreSQL's text search vectors
-- **Phonetic Search**: Metaphone algorithm for sound-based matching
-- **Real-time Search**: Instant results as you type
 
 ### Analytics & Visualization
 - **Task Completion Timeline**: Line chart showing completion trends over time
