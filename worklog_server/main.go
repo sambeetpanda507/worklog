@@ -584,12 +584,14 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "pong")
 }
 
-func main() {
+func init() {
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal(err)
 	}
+}
 
+func main() {
 	db := ConnectToDB()
 	defer db.Close()
 	serverPort := GetSecrets().serverPort
