@@ -16,7 +16,7 @@ const chartData = ref<ChartData[]>([] as ChartData[])
 const getChartData = async () => {
   try {
     isLoading.value = true
-    const response = await fetch('http://localhost:5001/status-summary', {
+    const response = await fetch(`${import.meta.env.VITE_SERVER_BASE_URL}/status-summary`, {
       method: 'GET',
       headers: { Accept: 'application/json' },
     })

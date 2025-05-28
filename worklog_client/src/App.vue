@@ -60,7 +60,7 @@ const totalPages = computed(() => {
 async function fetchLogs({ sortBy, sortOrder, page, limit }: FetchParams): Promise<void> {
   try {
     loading.value = true
-    const baseURL: string = 'http://localhost:5001/logs'
+    const baseURL: string = `${import.meta.env.VITE_SERVER_BASE_URL}/logs`
     const searchParams = new URLSearchParams()
     searchParams.set('page', page.toString())
     searchParams.set('limit', limit.toString())
@@ -117,7 +117,7 @@ async function handleConfirmDeleteLogs() {
   try {
     loading.value = true
     const logIds: string[] = selectedLogIds.value
-    const baseURL: string = 'http://localhost:5001/logs'
+    const baseURL: string = `${import.meta.env.VITE_SERVER_BASE_URL}/logs`
     const searchParms: URLSearchParams = new URLSearchParams({ logIds: JSON.stringify(logIds) })
     const url: string = `${baseURL}?${searchParms.toString()}`
     await fetch(url, { method: 'DELETE' })
@@ -383,11 +383,10 @@ watch([sortBy, sortOrder, page, limit], ([newSortBy, newSortOrder, newPageCount,
 </template>
 
 <style scoped>
-
 .checkbox-container {
   display: flex;
   align-items: center;
-  justify-self: center
+  justify-self: center;
 }
 
 .page-title {
@@ -406,7 +405,7 @@ watch([sortBy, sortOrder, page, limit], ([newSortBy, newSortOrder, newPageCount,
   display: none;
 }
 
-@media (min-width:40rem) {
+@media (min-width: 40rem) {
   .page-title {
     font-size: 2rem;
   }
@@ -415,7 +414,6 @@ watch([sortBy, sortOrder, page, limit], ([newSortBy, newSortOrder, newPageCount,
     display: block;
   }
 }
-
 
 .task-completion-summary {
   margin: 2rem;

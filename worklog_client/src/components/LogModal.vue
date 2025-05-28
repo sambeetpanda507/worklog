@@ -67,7 +67,7 @@ async function handleSubmit() {
     }
 
     const method = logId.value ? 'PUT' : 'POST'
-    const res = await fetch('http://localhost:5001/log', {
+    const res = await fetch(`${import.meta.env.VITE_SERVER_BASE_URL}/log`, {
       method,
       body: JSON.stringify(payload),
       headers: {

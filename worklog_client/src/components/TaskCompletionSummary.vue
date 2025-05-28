@@ -20,7 +20,7 @@ async function getChartData({
 }) {
   try {
     isLoading.value = true
-    const baseURL = 'http://localhost:5001/completed-task-count'
+    const baseURL = `${import.meta.env.VITE_SERVER_BASE_URL}/completed-task-count`
     const searchParams = new URLSearchParams({ v: selectedView, d: selectedDuration })
     const url = `${baseURL}?${searchParams.toString()}`
     const response = await fetch(url)
